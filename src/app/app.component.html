@@ -1,0 +1,424 @@
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Control de asistencia, inicio">
+      <span class="brand-mark">CA</span>
+      <span class="brand-copy">
+        <strong>Control de asistencia</strong>
+        <small>Gestión académica</small>
+      </span>
+    </a>
+
+    @if (actor; as current) {
+      <div class="topbar-right">
+        <div class="profile">
+          <span class="profile-dot">{{ (current.nombre || current.nombre_completo || 'U').slice(0, 1) }}</span>
+          <span class="profile-name">{{ current.nombre || current.nombre_completo || current.numero_registro }}</span>
+        </div>
+        <button class="button button-quiet button-small" type="button" (click)="logout()" [disabled]="busy">
+          Salir
+        </button>
+      </div>
+    }
+  </header>
+
+  <main>
+    @if (!actor) {
+      <section class="login-layout">
+        <div class="welcome-panel">
+          <span class="eyebrow">PLATAFORMA ACADÉMICA</span>
+          <h1>Tu asistencia,<br /><span>en un solo lugar.</span></h1>
+          <p>Consulta tus clases y registra tu asistencia de forma rápida y segura.</p>
+          <div class="welcome-footer">
+            <span class="mini-icon">✓</span>
+            <span>Información protegida y actualizada</span>
+          </div>
+        </div>
+        <section class="login-card" aria-labelledby="login-title">
+          <div class="login-heading">
+            <span class="eyebrow">BIENVENIDO</span>
+            <h2 id="login-title">Iniciar sesión</h2>
+            <p>Selecciona el tipo de acceso para continuar.</p>
+          </div>
+          <div class="mode-tabs" role="tablist" aria-label="Tipo de acceso">
+            <button type="button" role="tab" [attr.aria-selected]="loginMode === 'student'" [class.active]="loginMode === 'student'" (click)="loginMode = 'student'; error = ''">
+              Estudiante
+            </button>
+            <button type="button" role="tab" [attr.aria-selected]="loginMode === 'admin'" [class.active]="loginMode === 'admin'" (click)="loginMode = 'admin'; error = ''">
+              Administrador
+            </button>
+          </div>
+          @if (loginMode === 'student') {
+            <form (ngSubmit)="login()">
+              <label for="registration">Número de registro</label>
+              <input id="registration" name="registration" [(ngModel)]="registrationNumber" autocomplete="username" placeholder="Ej. 2024-00125" required />
+              <p class="field-hint">Ingresa el número registrado en el módulo activo.</p>
+              <button class="button button-primary button-wide" type="submit" [disabled]="busy || !registrationNumber.trim()">
+                {{ busy ? 'Validando…' : 'Ingresar como estudiante' }}
+                <span aria-hidden="true">→</span>
+              </button>
+            </form>
+          }
+          @if (loginMode === 'admin') {
+            <form (ngSubmit)="login()">
+              <label for="admin-email">Correo administrativo</label>
+              <input id="admin-email" name="adminEmail" type="email" [(ngModel)]="adminEmail" autocomplete="username" placeholder="admin@institucion.edu" required />
+              <label for="admin-password">Contraseña</label>
+              <input id="admin-password" name="adminPassword" type="password" [(ngModel)]="adminPassword" autocomplete="current-password" placeholder="Tu contraseña" required />
+              <button class="button button-primary button-wide" type="submit" [disabled]="busy || !adminEmail.trim() || !adminPassword">
+                {{ busy ? 'Validando…' : 'Ingresar al panel' }}
+                <span aria-hidden="true">→</span>
+              </button>
+            </form>
+          }
+          @if (error) {
+            <div class="alert alert-error" role="alert">{{ error }}</div>
+          }
+          <p class="login-note">¿Necesitas ayuda? Contacta al administrador de tu módulo.</p>
+        </section>
+      </section>
+    }
+
+    @if (actor) {
+      <section class="app-layout">
+        @if (isAdmin) {
+          <aside class="sidebar">
+            <span class="nav-label">ADMINISTRACIÓN</span>
+            <button type="button" class="nav-link" [class.selected]="section === 'attendance'" (click)="chooseSection('attendance')">
+              <span class="nav-icon">▦</span> Asistencias
+            </button>
+            <button type="button" class="nav-link" [class.selected]="section === 'modules'" (click)="chooseSection('modules')">
+              <span class="nav-icon">◷</span> Módulos y carga
+            </button>
+            <div class="sidebar-note">
+              <span class="status-dot"></span>
+              <span>Sesión protegida<br /><small>Conectado al sistema</small></span>
+            </div>
+          </aside>
+        }
+        <section class="workspace" [class.student-workspace]="isStudent">
+          <div class="page-heading">
+            <div>
+              <span class="eyebrow">{{ isAdmin ? 'PANEL DE CONTROL' : 'ESPACIO ESTUDIANTIL' }}</span>
+              @if (isAdmin && section === 'attendance') {
+                <h1>Registro de asistencia</h1>
+              }
+              @if (isAdmin && section === 'modules') {
+                <h1>Módulos académicos</h1>
+              }
+              @if (isStudent) {
+                <h1>Mi asistencia</h1>
+              }
+              @if (isAdmin && section === 'attendance') {
+                <p>Consulta, filtra y actualiza los registros del módulo.</p>
+              }
+              @if (isAdmin && section === 'modules') {
+                <p>Organiza los periodos e importa estudiantes y fechas de clase.</p>
+              }
+              @if (isStudent) {
+                <p>Consulta la clase de hoy y registra tu asistencia.</p>
+              }
+            </div>
+            <div class="date-chip"><span>HOY</span><strong>{{ today?.fecha || reportDate }}</strong></div>
+          </div>
+          @if (error) {
+            <div class="alert alert-error" role="alert">{{ error }}</div>
+          }
+          @if (notice) {
+            <div class="alert alert-success" role="status">{{ notice }}</div>
+          }
+          @if (isStudent) {
+            <section class="student-card">
+              <div class="student-card-head">
+                <div>
+                  <span class="eyebrow">MÓDULO ACTIVO</span>
+                  <h2>{{ actor.modulo }}</h2>
+                </div>
+                <span class="badge badge-live"><span class="status-dot"></span> En curso</span>
+              </div>
+              @if (today?.programada) {
+                <div class="class-summary">
+                  <div class="class-icon">◷</div>
+                  <div>
+                    <span class="eyebrow">CLASE PROGRAMADA PARA HOY</span>
+                    <h3>{{ today?.hora_inicio }} — {{ today?.hora_fin }}</h3>
+                    <p>{{ today?.fecha }}</p>
+                  </div>
+                </div>
+              } @else if (today?.cancelada) {
+                <div class="empty-state compact cancelled-state">
+                  <span class="empty-icon">!</span>
+                  <strong>La clase de hoy fue cancelada</strong>
+                  <span>{{ today?.motivo_cancelacion || 'Consulta con el administrador para más información.' }}</span>
+                </div>
+              } @else {
+                <div class="empty-state compact">
+                  <span class="empty-icon">◷</span>
+                  <strong>No tienes clase programada para hoy</strong>
+                  <span>Cuando haya una fecha de clase, aparecerá aquí.</span>
+                </div>
+              }
+              @if (today?.programada) {
+                <div class="checkin-panel">
+                  <div class="checkin-copy">
+                    @if (!today?.asistencia) {
+                      <strong>¿Estás en clase?</strong>
+                    }
+                    @if (today?.asistencia) {
+                      <strong>Asistencia registrada</strong>
+                    }
+                    @if (!today?.asistencia) {
+                      <span>Registra tu presencia para la sesión de hoy.</span>
+                    }
+                    @if (today?.asistencia) {
+                      <span>Estado: {{ today?.asistencia?.estado }} · {{ today?.asistencia?.fecha_hora_marcado }}</span>
+                    }
+                  </div>
+                  @if (!today?.asistencia) {
+                    <button class="button button-primary" type="button" (click)="markAttendance()" [disabled]="busy">
+                      {{ busy ? 'Registrando…' : 'Marcar asistencia' }}
+                    </button>
+                  }
+                  @if (today?.asistencia) {
+                    <span class="badge badge-success">✓ Presente</span>
+                  }
+                </div>
+              }
+            </section>
+            <section class="student-card student-schedule-card">
+              <div class="table-heading">
+                <div>
+                  <span class="eyebrow">CALENDARIO</span>
+                  <h2>Próximas clases</h2>
+                  <p>La marcación de asistencia se habilita únicamente el día de cada clase.</p>
+                </div>
+              </div>
+              @for (classDate of studentSchedule; track classDate.id_fecha_clase) {
+                <div class="student-class-item" [class.student-class-cancelled]="classDate.es_cancelada">
+                  <div class="student-class-date">
+                    <strong>{{ classDate.fecha }}</strong>
+                    <span>{{ classDate.hora_inicio }}–{{ classDate.hora_fin }}</span>
+                  </div>
+                  @if (classDate.es_cancelada) {
+                    <div class="student-class-status">
+                      <span class="badge badge-cancelled">Cancelada</span>
+                      <small>{{ classDate.motivo_cancelacion }}</small>
+                    </div>
+                  } @else if (classDate.asistencia === 'PRESENTE') {
+                    <span class="badge badge-success">Asistencia registrada</span>
+                  } @else if (classDate.es_hoy) {
+                    <span class="badge badge-live">Hoy · puedes marcar</span>
+                  } @else {
+                    <span class="badge badge-neutral">Marcación disponible ese día</span>
+                  }
+                </div>
+              }
+              @if (!studentSchedule.length) {
+                <div class="empty-state compact">
+                  <span class="empty-icon">◷</span>
+                  <strong>No hay próximas clases programadas</strong>
+                </div>
+              }
+            </section>
+            <p class="privacy-note">Tu número de registro: <strong>{{ actor.numero_registro }}</strong>. Si necesitas corregir un registro, contacta al administrador.</p>
+          }
+          @if (isAdmin && section === 'attendance') {
+            <section class="filters-card">
+              <div class="filter-field">
+                <label for="report-date">Fecha de clase</label>
+                <input id="report-date" type="date" [(ngModel)]="reportDate" (change)="loadReport()" />
+              </div>
+              <div class="filter-field">
+                <label for="report-module">Módulo</label>
+                <select id="report-module" [(ngModel)]="reportModuleId" (change)="loadReport()">
+                  @for (module of modules; track module.id_modulo) {
+                    <option [value]="module.id_modulo">{{ module.nombre }}{{ module.es_activo ? ' (activo)' : '' }}</option>
+                  }
+                </select>
+              </div>
+              <div class="filter-field search-field">
+                <label for="student-filter">Buscar estudiante</label>
+                <div class="search-input">
+                  <span aria-hidden="true">⌕</span>
+                  <input id="student-filter" type="search" [(ngModel)]="reportSearch" (keyup.enter)="loadReport()" placeholder="Número, nombre o correo" />
+                </div>
+              </div>
+              <button class="button button-secondary" type="button" (click)="loadReport()" [disabled]="busy">Aplicar filtros</button>
+            </section>
+            <section class="table-card">
+              <div class="table-heading">
+                <div>
+                  <h2>Estudiantes</h2>
+                  <p>Los registros sin marca de días anteriores se muestran como falta.</p>
+                </div>
+                <span class="count-pill">{{ reportTotal }} registros</span>
+              </div>
+              @if (reportRows.length) {
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>N.º registro</th>
+                        <th>Estudiante</th>
+                        <th>Correo</th>
+                        <th>Sesión</th>
+                        <th>Estado</th>
+                        <th><span class="visually-hidden">Acciones</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of reportRows; track row) {
+                        <tr>
+                          <td class="registration-cell">{{ row.numero_registro }}</td>
+                          <td class="name-cell">{{ row.nombre_completo }}</td>
+                          <td class="muted-cell">{{ row.correo_electronico || '—' }}</td>
+                          <td class="muted-cell">{{ row.hora_inicio }}–{{ row.hora_fin }}</td>
+                          <td>
+                            @if (row.es_cancelada) {
+                              <span class="badge badge-cancelled" [title]="row.motivo_cancelacion || ''">Cancelada</span>
+                            } @else {
+                              <select class="status-select" [class.pending]="row.estado === 'PENDIENTE'" [(ngModel)]="row.estado" [attr.aria-label]="'Estado de ' + row.nombre_completo">
+                                <option value="PENDIENTE" disabled>Pendiente</option>
+                                <option value="PRESENTE">Presente</option>
+                                <option value="FALTA">Falta</option>
+                              </select>
+                            }
+                          </td>
+                          <td>
+                            @if (!row.es_cancelada) {
+                              <button class="button button-small button-secondary" type="button" (click)="saveAttendance(row)" [disabled]="busy || row.estado === 'PENDIENTE'">Guardar</button>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <div class="empty-state">
+                  <span class="empty-icon">▤</span>
+                  <strong>No hay sesiones o estudiantes para esta fecha</strong>
+                  <span>Verifica que el módulo tenga una clase programada.</span>
+                </div>
+              }
+              @if (reportPages > 1) {
+                <div class="pagination-bar">
+                  <span>Página {{ reportPage }} de {{ reportPages }}</span>
+                  <div>
+                    <button class="button button-small button-secondary" type="button" (click)="loadReport(reportPage - 1)" [disabled]="reportPage <= 1">Anterior</button>
+                    <button class="button button-small button-secondary" type="button" (click)="loadReport(reportPage + 1)" [disabled]="reportPage >= reportPages">Siguiente</button>
+                  </div>
+                </div>
+              }
+            </section>
+          }
+          @if (isAdmin && section === 'modules') {
+            <div class="module-grid">
+              <section class="panel-card">
+                <div class="section-title">
+                  <span class="step-number">01</span>
+                  <div><h2>Crear módulo</h2><p>Define el periodo académico.</p></div>
+                </div>
+                <form class="module-form" (ngSubmit)="createModule()">
+                  <label for="module-name">Nombre del módulo</label>
+                  <input id="module-name" name="moduleName" [(ngModel)]="newModuleName" placeholder="Ej. Diplomado — Segundo módulo" required />
+                  <div class="date-fields">
+                    <div><label for="module-start">Fecha de inicio</label><input id="module-start" name="moduleStart" type="date" [(ngModel)]="newModuleStart" required /></div>
+                    <div><label for="module-end">Fecha de fin</label><input id="module-end" name="moduleEnd" type="date" [(ngModel)]="newModuleEnd" required /></div>
+                  </div>
+                  <button class="button button-primary" type="submit" [disabled]="busy || !newModuleName.trim() || !newModuleStart || !newModuleEnd">Crear módulo</button>
+                </form>
+              </section>
+              <section class="panel-card">
+                <div class="section-title">
+                  <span class="step-number">02</span>
+                  <div><h2>Importar Excel</h2><p>Carga alumnos y fechas de clase.</p></div>
+                </div>
+                <label for="import-module">Módulo destino</label>
+                <select id="import-module" class="full-select" [(ngModel)]="importModuleId">
+                  <option value="" disabled>Selecciona un módulo</option>
+                  @for (module of modules; track module) {
+                    <option [value]="module.id_modulo" [disabled]="module.es_activo">{{ module.nombre }}{{ module.es_activo ? ' (activo)' : '' }}</option>
+                  }
+                </select>
+                <label class="upload-zone" for="excel-file">
+                  <span class="upload-icon">↑</span>
+                  <strong>Selecciona un archivo .xlsx</strong>
+                  <small>Máximo 10 MB · Hoja estudiantes y fechas_clase</small>
+                  <input id="excel-file" type="file" accept=".xlsx" (change)="importWorkbook($event)" [disabled]="busy || !importModuleId" />
+                </label>
+                <div class="format-hint">
+                  <strong>Columnas requeridas</strong>
+                  <code>estudiantes: numero_registro, nombre_completo</code>
+                  <code>fechas_clase: fecha, hora_inicio, hora_fin</code>
+                  <small>El correo electrónico es opcional. Fechas YYYY-MM-DD, horas HH:MM.</small>
+                </div>
+              </section>
+            </div>
+            <section class="table-card module-list">
+              <div class="table-heading">
+                <div><h2>Módulos registrados</h2><p>Activa un módulo para habilitar el ingreso de sus estudiantes.</p></div>
+                <button class="button button-small button-secondary" type="button" (click)="loadAdminData()">Actualizar</button>
+              </div>
+              @for (module of modules; track module) {
+                <div class="module-item">
+                  <div class="module-details">
+                    <strong>{{ module.nombre }}</strong>
+                    <span>{{ module.fecha_inicio }} — {{ module.fecha_fin }}</span>
+                  </div>
+                  <span class="badge" [class.badge-live]="module.es_activo" [class.badge-neutral]="!module.es_activo">{{ module.es_activo ? 'Activo' : 'Inactivo' }}</span>
+                  @if (!module.es_activo) {
+                    <button class="button button-small button-primary" type="button" (click)="activateModule(module)" [disabled]="busy">Activar</button>
+                  }
+                </div>
+              }
+              @if (!modules.length) {
+                <div class="empty-state compact"><strong>Aún no hay módulos</strong><span>Crea un módulo para comenzar.</span></div>
+              }
+            </section>
+            <section class="table-card class-list">
+              <div class="table-heading">
+                <div>
+                  <h2>Calendario de clases</h2>
+                  <p>Cancela una sesión excepcional —por ejemplo, por lluvia— indicando el motivo. No se generarán faltas para esa fecha.</p>
+                </div>
+              </div>
+              <div class="class-list-filter">
+                <label for="class-module">Módulo</label>
+                <select id="class-module" class="full-select" [(ngModel)]="classModuleId" (change)="loadClassDates()">
+                  @for (module of modules; track module.id_modulo) {
+                    <option [value]="module.id_modulo">{{ module.nombre }}{{ module.es_activo ? ' (activo)' : '' }}</option>
+                  }
+                </select>
+              </div>
+              @for (classDate of classDates; track classDate.id_fecha_clase) {
+                <div class="class-date-item" [class.class-date-cancelled]="classDate.es_cancelada">
+                  <div class="class-date-details">
+                    <strong>{{ classDate.fecha }}</strong>
+                    <span>{{ classDate.hora_inicio }}–{{ classDate.hora_fin }}</span>
+                    @if (classDate.es_cancelada) {
+                      <small>Motivo: {{ classDate.motivo_cancelacion }}</small>
+                    }
+                  </div>
+                  @if (classDate.es_cancelada) {
+                    <span class="badge badge-cancelled">Cancelada</span>
+                    <button class="button button-small button-secondary" type="button" (click)="restoreClass(classDate)" [disabled]="busy">Restaurar</button>
+                  } @else {
+                    <span class="badge badge-neutral">Programada</span>
+                    <button class="button button-small button-danger" type="button" (click)="cancelClass(classDate)" [disabled]="busy">Cancelar clase</button>
+                  }
+                </div>
+              }
+              @if (!classDates.length) {
+                <div class="empty-state compact"><strong>No hay fechas de clase</strong><span>Importa el calendario para administrar sus sesiones.</span></div>
+              }
+            </section>
+          }
+        </section>
+      </section>
+    }
+  </main>
+  <footer class="footer">
+    <span>Control de asistencia académica</span>
+    <span>Acceso seguro · Datos protegidos</span>
+  </footer>
+</div>
