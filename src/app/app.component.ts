@@ -1,4 +1,4 @@
-
+import { CommonModule, DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -9,13 +9,14 @@ import {
   AttendanceApiService,
   AttendanceRow,
   AttendanceToday,
+  AuditLogEntry,
   ClassDate,
   StudentClass,
 } from './attendance-api.service';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule],
+  imports: [CommonModule, FormsModule, DatePipe],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
@@ -24,8 +25,9 @@ export class AppComponent implements OnInit {
 
   actor: Actor | null = null;
   loginMode: 'student' | 'admin' = 'student';
-  section: 'attendance' | 'modules' = 'attendance';
+  section: 'attendance' | 'modules' | 'audit' = 'attendance';
   registrationNumber = '';
+  studentPassword = '';
   adminEmail = '';
   adminPassword = '';
   error = '';
@@ -47,6 +49,43 @@ export class AppComponent implements OnInit {
   newModuleStart = '';
   newModuleEnd = '';
   importModuleId = '';
+
+  // Student password change
+  currentPassword = '';
+  newPassword = '';
+  confirmPassword = '';
+  showPasswordForm = false;
+
+  // Audit log
+  auditEntries: AuditLogEntry[] = [];
+  auditPage = 1;
+  auditPages = 0;
+  auditTotal = 0;
+  auditModuleId = '';
+  auditDate = '';
+  auditRol = '';
+  auditActionFilter = '';
+
+  private studentCache = new Map<string, { name: string; reg: string }>();
+  private classCache = new Map<string, { date: string; time: string }>();
+
+  get filteredAuditEntries(): AuditLogEntry[] {
+    if (!this.auditActionFilter) return this.auditEntries;
+    if (this.auditActionFilter === 'MODIFICAR_ASISTENCIA') {
+      return this.auditEntries.filter((e) => e.accion === 'MODIFICAR_ASISTENCIA');
+    }
+    if (this.auditActionFilter === 'CLASES') {
+      return this.auditEntries.filter(
+        (e) => e.accion === 'CANCELAR_CLASE' || e.accion === 'RESTAURAR_CLASE',
+      );
+    }
+    if (this.auditActionFilter === 'MODULOS') {
+      return this.auditEntries.filter(
+        (e) => e.accion === 'ACTIVAR_MODULO' || e.accion === 'IMPORTAR_EXCEL',
+      );
+    }
+    return this.auditEntries;
+  }
 
   ngOnInit(): void {
     this.api.currentActor().subscribe({
@@ -77,12 +116,13 @@ export class AppComponent implements OnInit {
       this.actor =
         this.loginMode === 'student'
           ? await firstValueFrom(
-              this.api.loginStudent(this.registrationNumber.trim()),
+              this.api.loginStudent(this.registrationNumber.trim(), this.studentPassword),
             )
           : await firstValueFrom(
               this.api.loginAdmin(this.adminEmail.trim(), this.adminPassword),
             );
       this.registrationNumber = '';
+      this.studentPassword = '';
       this.adminPassword = '';
       this.refreshView();
     } catch (error: unknown) {
@@ -199,6 +239,16 @@ export class AppComponent implements OnInit {
       this.reportTotal = result.total;
       this.reportPage = result.pagina;
       this.reportPages = result.paginas;
+      for (const row of this.reportRows) {
+        this.studentCache.set(row.id_estudiante, {
+          name: row.nombre_completo,
+          reg: row.numero_registro,
+        });
+        this.classCache.set(row.id_fecha_clase, {
+          date: row.fecha,
+          time: `${row.hora_inicio.slice(0, 5)} - ${row.hora_fin.slice(0, 5)}`,
+        });
+      }
     } catch (error: unknown) {
       this.error = this.messageFrom(error);
     }
@@ -230,6 +280,12 @@ export class AppComponent implements OnInit {
         this.api.moduleClasses(this.classModuleId),
       );
       this.classDates = result.results;
+      for (const cd of this.classDates) {
+        this.classCache.set(cd.id_fecha_clase, {
+          date: cd.fecha,
+          time: `${cd.hora_inicio.slice(0, 5)} - ${cd.hora_fin.slice(0, 5)}`,
+        });
+      }
     } catch (error: unknown) {
       this.error = this.messageFrom(error);
     }
@@ -352,14 +408,198 @@ export class AppComponent implements OnInit {
     }
   }
 
-  chooseSection(section: 'attendance' | 'modules'): void {
+  chooseSection(section: 'attendance' | 'modules' | 'audit'): void {
     this.section = section;
     this.error = '';
+    this.notice = '';
     if (section === 'modules') {
       void this.loadAdminData();
+    } else if (section === 'audit') {
+      void this.loadAuditLog();
     } else {
       void this.loadReport();
     }
+  }
+
+  async loadAuditLog(page = 1): Promise<void> {
+    this.error = '';
+    try {
+      const result = await firstValueFrom(
+        this.api.auditLog(page, this.auditModuleId, this.auditDate, this.auditRol),
+      );
+      this.auditEntries = result.results;
+      this.auditTotal = result.total;
+      this.auditPage = result.pagina;
+      this.auditPages = result.paginas;
+    } catch (error: unknown) {
+      this.error = this.messageFrom(error);
+    }
+  }
+
+  async changePassword(): Promise<void> {
+    this.error = '';
+    this.notice = '';
+    if (this.newPassword !== this.confirmPassword) {
+      this.error = 'Las contraseñas no coinciden.';
+      return;
+    }
+    this.busy = true;
+    try {
+      await firstValueFrom(
+        this.api.changeStudentPassword(this.currentPassword, this.newPassword),
+      );
+      this.notice = 'Contraseña actualizada correctamente.';
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.confirmPassword = '';
+      this.showPasswordForm = false;
+    } catch (error: unknown) {
+      this.error = this.messageFrom(error);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  formatAuditAction(action: string): string {
+    const map: Record<string, string> = {
+      MODIFICAR_ASISTENCIA: 'Modificación de asistencia',
+      MARCAR_ASISTENCIA: 'Marcado de asistencia',
+      CANCELAR_CLASE: 'Cancelación de clase',
+      RESTAURAR_CLASE: 'Restauración de clase',
+      ACTIVAR_MODULO: 'Activación de módulo',
+      IMPORTAR_EXCEL: 'Importación de Excel',
+      CAMBIAR_PASSWORD: 'Cambio de contraseña',
+    };
+    return map[action] ?? action;
+  }
+
+  getActionIcon(action: string): string {
+    const icons: Record<string, string> = {
+      MODIFICAR_ASISTENCIA: '✏️',
+      MARCAR_ASISTENCIA: '⏱️',
+      CANCELAR_CLASE: '🚫',
+      RESTAURAR_CLASE: '🔄',
+      ACTIVAR_MODULO: '⚡',
+      IMPORTAR_EXCEL: '📊',
+      CAMBIAR_PASSWORD: '🔑',
+    };
+    return icons[action] ?? '📋';
+  }
+
+  isAttendanceAction(entry: AuditLogEntry): boolean {
+    return (
+      entry.accion === 'MODIFICAR_ASISTENCIA' ||
+      entry.entidad_afectada === 'asistencias'
+    );
+  }
+
+  getAuditStudent(entry: AuditLogEntry): { name: string; reg?: string } | null {
+    const data = entry.valor_nuevo || entry.valor_anterior;
+    if (!data) return null;
+    const studentId = String(data['id_estudiante'] ?? '');
+    if (!studentId) return null;
+    const cached = this.studentCache.get(studentId);
+    if (cached) return cached;
+    return { name: `Estudiante #${studentId.slice(0, 8)}` };
+  }
+
+  getAuditClassDate(entry: AuditLogEntry): string | null {
+    const data = entry.valor_nuevo || entry.valor_anterior;
+    if (!data) return null;
+    const classId = String(data['id_fecha_clase'] ?? '');
+    if (!classId) return null;
+    const cached = this.classCache.get(classId);
+    if (cached) return `${cached.date} (${cached.time})`;
+    return null;
+  }
+
+  getMarkedTime(value: Record<string, unknown> | null | undefined): string | null {
+    const raw = value?.['fecha_hora_marcado'];
+    return typeof raw === 'string' && raw.trim() ? raw : null;
+  }
+
+  formatAttendanceStatus(status: unknown): string {
+    const str = String(status ?? '').toUpperCase();
+    switch (str) {
+      case 'PRESENTE':
+        return 'Presente';
+      case 'FALTA':
+        return 'Falta';
+      case 'PENDIENTE':
+        return 'Pendiente';
+      case 'SIN_MARCA':
+        return 'Sin marca';
+      case 'CANCELADA':
+        return 'Cancelada';
+      default:
+        return str || '—';
+    }
+  }
+
+  attendanceStatusClass(status: unknown): string {
+    const str = String(status ?? '').toUpperCase();
+    switch (str) {
+      case 'PRESENTE':
+        return 'audit-badge-presente';
+      case 'FALTA':
+        return 'audit-badge-falta';
+      case 'PENDIENTE':
+        return 'audit-badge-pendiente';
+      case 'SIN_MARCA':
+        return 'audit-badge-sin-marca';
+      case 'CANCELADA':
+        return 'audit-badge-cancelada';
+      default:
+        return 'audit-badge-default';
+    }
+  }
+
+  formatOtherAuditValue(
+    action: string,
+    value: Record<string, unknown> | null,
+    isPrevious: boolean,
+  ): string {
+    if (!value) return isPrevious ? '— (Sin valor previo)' : '—';
+    if (action === 'CANCELAR_CLASE') {
+      if (isPrevious) return 'Sesión activa';
+      const motivo = value['motivo_cancelacion'] || value['motivo'];
+      return motivo ? `Cancelada · Motivo: "${motivo}"` : 'Cancelada';
+    }
+    if (action === 'RESTAURAR_CLASE') {
+      if (isPrevious) return 'Sesión cancelada';
+      return 'Restaurada (Programada)';
+    }
+    if (action === 'ACTIVAR_MODULO') {
+      if (isPrevious) return 'Módulo inactivo';
+      return `Módulo activo: ${value['nombre'] ?? ''}`;
+    }
+    if (action === 'IMPORTAR_EXCEL') {
+      if (isPrevious) return '—';
+      const est =
+        value['estudiantes_importados'] ??
+        value['estudiantes'] ??
+        0;
+      const cls =
+        value['fechas_clase_importadas'] ??
+        value['fechas_clase'] ??
+        0;
+      return `Importación: ${est} estudiantes, ${cls} clases registradas`;
+    }
+    if (action === 'CAMBIAR_PASSWORD') {
+      return isPrevious ? '—' : 'Contraseña actualizada';
+    }
+    if (action === 'MARCAR_ASISTENCIA') {
+      if (isPrevious) return 'Sin marca';
+      return 'Presente (Auto-marcado)';
+    }
+    return this.jsonSummary(value);
+  }
+
+  jsonSummary(value: Record<string, unknown> | null): string {
+    if (!value) return '—';
+    return Object.entries(value)
+      .map(([k, v]) => `${k}: ${v ?? '—'}`)
+      .join(', ');
   }
 
   private refreshView(): void {
@@ -380,9 +620,6 @@ export class AppComponent implements OnInit {
   }
 
   private localDate(): string {
-    const now = new Date();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${now.getFullYear()}-${month}-${day}`;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz' }).format(new Date());
   }
 }

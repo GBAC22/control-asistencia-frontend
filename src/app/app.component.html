@@ -51,8 +51,10 @@
             <form (ngSubmit)="login()">
               <label for="registration">Número de registro</label>
               <input id="registration" name="registration" [(ngModel)]="registrationNumber" autocomplete="username" placeholder="Ej. 2024-00125" required />
-              <p class="field-hint">Ingresa el número registrado en el módulo activo.</p>
-              <button class="button button-primary button-wide" type="submit" [disabled]="busy || !registrationNumber.trim()">
+              <label for="student-password">Contraseña</label>
+              <input id="student-password" name="studentPassword" type="password" [(ngModel)]="studentPassword" autocomplete="current-password" placeholder="Tu contraseña" required />
+              <p class="field-hint">La primera vez usa tu número de registro como contraseña.</p>
+              <button class="button button-primary button-wide" type="submit" [disabled]="busy || !registrationNumber.trim() || !studentPassword">
                 {{ busy ? 'Validando…' : 'Ingresar como estudiante' }}
                 <span aria-hidden="true">→</span>
               </button>
@@ -89,6 +91,9 @@
             <button type="button" class="nav-link" [class.selected]="section === 'modules'" (click)="chooseSection('modules')">
               <span class="nav-icon">◷</span> Módulos y carga
             </button>
+            <button type="button" class="nav-link" [class.selected]="section === 'audit'" (click)="chooseSection('audit')">
+              <span class="nav-icon">⚙</span> Auditoría
+            </button>
             <div class="sidebar-note">
               <span class="status-dot"></span>
               <span>Sesión protegida<br /><small>Conectado al sistema</small></span>
@@ -105,6 +110,9 @@
               @if (isAdmin && section === 'modules') {
                 <h1>Módulos académicos</h1>
               }
+              @if (isAdmin && section === 'audit') {
+                <h1>Auditoría de cambios</h1>
+              }
               @if (isStudent) {
                 <h1>Mi asistencia</h1>
               }
@@ -113,6 +121,9 @@
               }
               @if (isAdmin && section === 'modules') {
                 <p>Organiza los periodos e importa estudiantes y fechas de clase.</p>
+              }
+              @if (isAdmin && section === 'audit') {
+                <p>Historial de modificaciones administrativas en asistencias y clases.</p>
               }
               @if (isStudent) {
                 <p>Consulta la clase de hoy y registra tu asistencia.</p>
@@ -220,6 +231,31 @@
               }
             </section>
             <p class="privacy-note">Tu número de registro: <strong>{{ actor.numero_registro }}</strong>. Si necesitas corregir un registro, contacta al administrador.</p>
+
+            <section class="student-card">
+              <div class="table-heading">
+                <div>
+                  <span class="eyebrow">SEGURIDAD</span>
+                  <h2>Cambiar contraseña</h2>
+                </div>
+                <button class="button button-small button-secondary" type="button" (click)="showPasswordForm = !showPasswordForm">
+                  {{ showPasswordForm ? 'Cancelar' : 'Cambiar' }}
+                </button>
+              </div>
+              @if (showPasswordForm) {
+                <form class="module-form" (ngSubmit)="changePassword()">
+                  <label for="current-pwd">Contraseña actual</label>
+                  <input id="current-pwd" name="currentPassword" type="password" [(ngModel)]="currentPassword" autocomplete="current-password" required />
+                  <label for="new-pwd">Nueva contraseña</label>
+                  <input id="new-pwd" name="newPassword" type="password" [(ngModel)]="newPassword" autocomplete="new-password" required />
+                  <label for="confirm-pwd">Confirmar nueva contraseña</label>
+                  <input id="confirm-pwd" name="confirmPassword" type="password" [(ngModel)]="confirmPassword" autocomplete="new-password" required />
+                  <button class="button button-primary" type="submit" [disabled]="busy || !currentPassword || !newPassword || !confirmPassword">
+                    {{ busy ? 'Guardando…' : 'Actualizar contraseña' }}
+                  </button>
+                </form>
+              }
+            </section>
           }
           @if (isAdmin && section === 'attendance') {
             <section class="filters-card">
@@ -410,6 +446,184 @@
               }
               @if (!classDates.length) {
                 <div class="empty-state compact"><strong>No hay fechas de clase</strong><span>Importa el calendario para administrar sus sesiones.</span></div>
+              }
+            </section>
+          }
+          @if (isAdmin && section === 'audit') {
+            <section class="filters-card">
+              <div class="filter-field">
+                <label for="audit-module">Módulo</label>
+                <select id="audit-module" [(ngModel)]="auditModuleId" (change)="loadAuditLog()">
+                  <option value="">Todos</option>
+                  @for (module of modules; track module.id_modulo) {
+                    <option [value]="module.id_modulo">{{ module.nombre }}{{ module.es_activo ? ' (activo)' : '' }}</option>
+                  }
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="audit-date">Fecha</label>
+                <input id="audit-date" type="date" [(ngModel)]="auditDate" (change)="loadAuditLog()" />
+              </div>
+              <div class="filter-field">
+                <label for="audit-rol">Rol</label>
+                <select id="audit-rol" [(ngModel)]="auditRol" (change)="loadAuditLog()">
+                  <option value="">Todos</option>
+                  <option value="ADMIN">Administrador</option>
+                  <option value="ESTUDIANTE">Estudiante</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="audit-action-filter">Tipo de cambio</label>
+                <select id="audit-action-filter" [(ngModel)]="auditActionFilter">
+                  <option value="">Todos los eventos</option>
+                  <option value="MODIFICAR_ASISTENCIA">✏️ Modificaciones de asistencia</option>
+                  <option value="CLASES">🚫 Cancelación / Restauración clases</option>
+                  <option value="MODULOS">⚡ Módulos e importaciones</option>
+                </select>
+              </div>
+              <button class="button button-secondary" type="button" (click)="loadAuditLog()" [disabled]="busy">Aplicar filtros</button>
+            </section>
+            <section class="table-card">
+              <div class="table-heading">
+                <div>
+                  <h2>Registro de actividades</h2>
+                  <p>Modificaciones administrativas sobre asistencias, clases y módulos.</p>
+                </div>
+                <span class="count-pill">{{ filteredAuditEntries.length }} / {{ auditTotal }} entradas</span>
+              </div>
+              @if (filteredAuditEntries.length) {
+                <div class="table-scroll">
+                  <table class="audit-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha y hora (BOT)</th>
+                        <th>Actor</th>
+                        <th>Rol</th>
+                        <th>Acción</th>
+                        <th>Referencia / Afectado</th>
+                        <th>Estado anterior</th>
+                        <th>Estado nuevo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (entry of filteredAuditEntries; track entry.id_auditoria) {
+                        <tr [class.row-attendance-highlight]="isAttendanceAction(entry)">
+                          <td class="muted-cell nowrap-cell">
+                            <div class="audit-date-time">
+                              <strong>{{ entry.fecha_hora | date:'dd/MM/yyyy':'-0400' }}</strong>
+                              <small>{{ entry.fecha_hora | date:'HH:mm:ss':'-0400' }}</small>
+                            </div>
+                          </td>
+                          <td class="name-cell">
+                            <div class="audit-actor-info">
+                              <span class="actor-name">{{ entry.usuario_actor }}</span>
+                              @if (entry.nombre_modulo) {
+                                <small class="actor-module" [title]="'Módulo: ' + entry.nombre_modulo">{{ entry.nombre_modulo }}</small>
+                              }
+                            </div>
+                          </td>
+                          <td>
+                            <span class="badge" [class.badge-live]="entry.rol_actor === 'ADMIN'" [class.badge-neutral]="entry.rol_actor !== 'ADMIN'">
+                              {{ entry.rol_actor === 'ADMIN' ? 'Admin' : 'Estudiante' }}
+                            </span>
+                          </td>
+                          <td>
+                            <div class="audit-action-pill" [class.action-attendance]="isAttendanceAction(entry)">
+                              <span class="action-icon">{{ getActionIcon(entry.accion) }}</span>
+                              <span>{{ formatAuditAction(entry.accion) }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            @if (isAttendanceAction(entry)) {
+                              <div class="audit-target-box">
+                                <div class="target-main">
+                                  <span class="target-icon">👤</span>
+                                  <strong>{{ getAuditStudent(entry)?.name }}</strong>
+                                </div>
+                                @if (getAuditStudent(entry)?.reg) {
+                                  <span class="target-sub-pill">Reg. {{ getAuditStudent(entry)?.reg }}</span>
+                                }
+                                @if (getAuditClassDate(entry)) {
+                                  <span class="target-class-chip">📅 {{ getAuditClassDate(entry) }}</span>
+                                }
+                              </div>
+                            } @else if (entry.accion === 'CANCELAR_CLASE' || entry.accion === 'RESTAURAR_CLASE') {
+                              <div class="audit-target-box">
+                                <div class="target-main">
+                                  <span class="target-icon">📅</span>
+                                  <strong>Sesión de clase</strong>
+                                </div>
+                                @if (getAuditClassDate(entry)) {
+                                  <span class="target-class-chip">{{ getAuditClassDate(entry) }}</span>
+                                }
+                              </div>
+                            } @else {
+                              <div class="audit-target-box">
+                                <strong class="target-main">{{ entry.nombre_modulo || entry.entidad_afectada }}</strong>
+                                <span class="target-sub-pill">{{ entry.entidad_afectada }}</span>
+                              </div>
+                            }
+                          </td>
+                          <td class="audit-data-cell">
+                            @if (isAttendanceAction(entry)) {
+                              <div class="audit-state-card prev">
+                                <span class="audit-status-badge" [ngClass]="attendanceStatusClass(entry.valor_anterior?.['estado'])">
+                                  {{ formatAttendanceStatus(entry.valor_anterior?.['estado']) }}
+                                </span>
+                                @if (getMarkedTime(entry.valor_anterior); as prevTime) {
+                                  <span class="audit-meta-time" title="Hora de marcado previa">
+                                    🕒 {{ prevTime | date:'dd/MM/yyyy HH:mm:ss':'-0400' }}
+                                  </span>
+                                } @else {
+                                  <span class="audit-meta-muted">Sin hora de marcado</span>
+                                }
+                              </div>
+                            } @else {
+                              <div class="detail-cell-clean" [title]="jsonSummary(entry.valor_anterior)">
+                                {{ formatOtherAuditValue(entry.accion, entry.valor_anterior, true) }}
+                              </div>
+                            }
+                          </td>
+                          <td class="audit-data-cell">
+                            @if (isAttendanceAction(entry)) {
+                              <div class="audit-state-card next">
+                                <span class="audit-status-badge" [ngClass]="attendanceStatusClass(entry.valor_nuevo?.['estado'])">
+                                  {{ formatAttendanceStatus(entry.valor_nuevo?.['estado']) }}
+                                </span>
+                                @if (getMarkedTime(entry.valor_nuevo); as nextTime) {
+                                  <span class="audit-meta-time" title="Hora de marcado registrada">
+                                    🕒 {{ nextTime | date:'dd/MM/yyyy HH:mm:ss':'-0400' }}
+                                  </span>
+                                } @else {
+                                  <span class="audit-meta-muted">Sin hora de marcado</span>
+                                }
+                              </div>
+                            } @else {
+                              <div class="detail-cell-clean" [title]="jsonSummary(entry.valor_nuevo)">
+                                {{ formatOtherAuditValue(entry.accion, entry.valor_nuevo, false) }}
+                              </div>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <div class="empty-state">
+                  <span class="empty-icon">⚙</span>
+                  <strong>No hay registros de auditoría</strong>
+                  <span>{{ auditActionFilter ? 'No hay eventos que coincidan con el filtro seleccionado.' : 'Las modificaciones administrativas aparecerán aquí.' }}</span>
+                </div>
+              }
+              @if (auditPages > 1) {
+                <div class="pagination-bar">
+                  <span>Página {{ auditPage }} de {{ auditPages }}</span>
+                  <div>
+                    <button class="button button-small button-secondary" type="button" (click)="loadAuditLog(auditPage - 1)" [disabled]="auditPage <= 1">Anterior</button>
+                    <button class="button button-small button-secondary" type="button" (click)="loadAuditLog(auditPage + 1)" [disabled]="auditPage >= auditPages">Siguiente</button>
+                  </div>
+                </div>
               }
             </section>
           }
