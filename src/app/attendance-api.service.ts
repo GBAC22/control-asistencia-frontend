@@ -85,6 +85,26 @@ export interface ImportResult {
   importados: { estudiantes: number; fechas_clase: number };
 }
 
+export interface AuditLogEntry {
+  id_auditoria: string;
+  id_modulo: string;
+  nombre_modulo: string;
+  usuario_actor: string;
+  rol_actor: string;
+  accion: string;
+  entidad_afectada: string;
+  valor_anterior: Record<string, unknown> | null;
+  valor_nuevo: Record<string, unknown> | null;
+  fecha_hora: string;
+}
+
+export interface AuditLogReport {
+  total: number;
+  pagina: number;
+  paginas: number;
+  results: AuditLogEntry[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AttendanceApiService {
   private readonly http = inject(HttpClient);
@@ -93,8 +113,8 @@ export class AttendanceApiService {
     return this.http.get<{ detail: string }>('/api/auth/csrf');
   }
 
-  loginStudent(numero_registro: string): Observable<Actor> {
-    return this.http.post<Actor>('/api/auth/login/student', { numero_registro });
+  loginStudent(numero_registro: string, password: string): Observable<Actor> {
+    return this.http.post<Actor>('/api/auth/login/student', { numero_registro, password });
   }
 
   loginAdmin(correo: string, password: string): Observable<Actor> {
@@ -196,5 +216,28 @@ export class AttendanceApiService {
       id_estudiante: row.id_estudiante,
       estado: row.estado,
     });
+  }
+
+  changeStudentPassword(
+    current_password: string,
+    new_password: string,
+  ): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>('/api/student/password/change', {
+      current_password,
+      new_password,
+    });
+  }
+
+  auditLog(
+    pagina = 1,
+    moduleId = '',
+    fecha = '',
+    rol = '',
+  ): Observable<AuditLogReport> {
+    let params = new HttpParams().set('pagina', pagina);
+    if (moduleId) params = params.set('id_modulo', moduleId);
+    if (fecha) params = params.set('fecha', fecha);
+    if (rol) params = params.set('rol', rol);
+    return this.http.get<AuditLogReport>('/api/admin/audit', { params });
   }
 }

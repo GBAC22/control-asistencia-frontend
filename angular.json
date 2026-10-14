@@ -57,6 +57,14 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json",
+            "allowedHosts": [
+              "math-dejected-thieving.ngrok-free.dev",
+              ".ngrok-free.dev",
+              ".ngrok-free.app"
+            ]
+          },
           "configurations": {
             "production": {
               "buildTarget": "control-asistencia-web:build:production"
