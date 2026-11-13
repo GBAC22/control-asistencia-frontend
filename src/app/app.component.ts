@@ -408,6 +408,32 @@ export class AppComponent implements OnInit {
     }
   }
 
+  async downloadInitialPasswords(module: AcademicModule): Promise<void> {
+    this.error = '';
+    this.notice = '';
+    this.busy = true;
+    try {
+      const file = await firstValueFrom(this.api.downloadInitialPasswords(module.id_modulo));
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `credenciales-${module.id_modulo}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.notice = 'Descarga preparada. Comparte las contraseñas por un canal privado y elimina el archivo cuando ya no lo necesites.';
+    } catch (error: unknown) {
+      if (error instanceof HttpErrorResponse && error.error instanceof Blob) {
+        this.error = `No se pudieron descargar las credenciales (HTTP ${error.status}). Comprueba la sesión y la configuración del backend.`;
+      } else {
+        this.error = this.messageFrom(error);
+      }
+    } finally {
+      this.busy = false;
+    }
+  }
+
   chooseSection(section: 'attendance' | 'modules' | 'audit'): void {
     this.section = section;
     this.error = '';
@@ -469,6 +495,7 @@ export class AppComponent implements OnInit {
       ACTIVAR_MODULO: 'Activación de módulo',
       IMPORTAR_EXCEL: 'Importación de Excel',
       CAMBIAR_PASSWORD: 'Cambio de contraseña',
+      DESCARGAR_CREDENCIALES: 'Descarga de credenciales iniciales',
     };
     return map[action] ?? action;
   }
@@ -482,6 +509,7 @@ export class AppComponent implements OnInit {
       ACTIVAR_MODULO: '⚡',
       IMPORTAR_EXCEL: '📊',
       CAMBIAR_PASSWORD: '🔑',
+      DESCARGAR_CREDENCIALES: '🔑',
     };
     return icons[action] ?? '📋';
   }

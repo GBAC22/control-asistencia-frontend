@@ -194,6 +194,12 @@ export class AttendanceApiService {
     return this.http.post<ImportResult>(`/api/admin/modules/${id}/import`, form);
   }
 
+  downloadInitialPasswords(id: string): Observable<Blob> {
+    return this.http.get(`/api/admin/modules/${id}/initial-passwords`, {
+      responseType: 'blob',
+    });
+  }
+
   attendanceReport(
     fecha: string,
     estudiante = '',

@@ -25,3 +25,7 @@ npm test
 Authentication, schedules, attendance, class cancellations, and module
 management are provided by the Django API; do not put database credentials or
 application secrets in this frontend repository.
+
+For student import and initial password downloads, see
+[the credential workflow](CAMBIOS-CREDENCIALES.md). This requires the compatible
+backend and its separately configured encryption key.

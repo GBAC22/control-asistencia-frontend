@@ -84,4 +84,12 @@ describe('AttendanceApiService', () => {
     expect(request.request.method).toBe('GET');
     request.flush({ results: [] });
   });
+
+  it('downloads the initial password workbook for a module', () => {
+    service.downloadInitialPasswords('module-1').subscribe();
+    const request = httpTesting.expectOne('/api/admin/modules/module-1/initial-passwords');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob(['test']));
+  });
 });

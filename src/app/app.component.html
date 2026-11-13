@@ -53,7 +53,7 @@
               <input id="registration" name="registration" [(ngModel)]="registrationNumber" autocomplete="username" placeholder="Ej. 2024-00125" required />
               <label for="student-password">Contraseña</label>
               <input id="student-password" name="studentPassword" type="password" [(ngModel)]="studentPassword" autocomplete="current-password" placeholder="Tu contraseña" required />
-              <p class="field-hint">La primera vez usa tu número de registro como contraseña.</p>
+              <p class="field-hint">Solicita tu contraseña inicial al administrador y cámbiala después de ingresar.</p>
               <button class="button button-primary button-wide" type="submit" [disabled]="busy || !registrationNumber.trim() || !studentPassword">
                 {{ busy ? 'Validando…' : 'Ingresar como estudiante' }}
                 <span aria-hidden="true">→</span>
@@ -386,7 +386,7 @@
                   <strong>Columnas requeridas</strong>
                   <code>estudiantes: numero_registro, nombre_completo</code>
                   <code>fechas_clase: fecha, hora_inicio, hora_fin</code>
-                  <small>El correo electrónico es opcional. Fechas YYYY-MM-DD, horas HH:MM.</small>
+                  <small>El correo es opcional. No incluyas contraseñas: se generan automáticamente. Fechas YYYY-MM-DD, horas HH:MM.</small>
                 </div>
               </section>
             </div>
@@ -402,6 +402,7 @@
                     <span>{{ module.fecha_inicio }} — {{ module.fecha_fin }}</span>
                   </div>
                   <span class="badge" [class.badge-live]="module.es_activo" [class.badge-neutral]="!module.es_activo">{{ module.es_activo ? 'Activo' : 'Inactivo' }}</span>
+                  <button class="button button-small button-secondary" type="button" (click)="downloadInitialPasswords(module)" [disabled]="busy">Descargar contraseñas iniciales</button>
                   @if (!module.es_activo) {
                     <button class="button button-small button-primary" type="button" (click)="activateModule(module)" [disabled]="busy">Activar</button>
                   }
