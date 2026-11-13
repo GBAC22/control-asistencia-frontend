@@ -25,6 +25,15 @@ describe('AttendanceApiService', () => {
 
   afterEach(() => httpTesting.verify());
 
+  it('requests the public tenant identity', () => {
+    service.tenant().subscribe((result) => {
+      expect(result.tenant?.name).toBe('Institución Ejemplo');
+    });
+    const request = httpTesting.expectOne('/api/tenant');
+    expect(request.request.method).toBe('GET');
+    request.flush({ tenant: { slug: 'i4-demo', name: 'Institución Ejemplo', plan: 'Estándar' } });
+  });
+
   it('sends date, student, module and page filters in the attendance request', () => {
     service.attendanceReport('2026-06-01', 'REG-1', 2, 'module-1').subscribe();
 
@@ -83,5 +92,13 @@ describe('AttendanceApiService', () => {
     const request = httpTesting.expectOne('/api/student/schedule');
     expect(request.request.method).toBe('GET');
     request.flush({ results: [] });
+  });
+
+  it('downloads the initial password workbook for a module', () => {
+    service.downloadInitialPasswords('module-1').subscribe();
+    const request = httpTesting.expectOne('/api/admin/modules/module-1/initial-passwords');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob(['test']));
   });
 });

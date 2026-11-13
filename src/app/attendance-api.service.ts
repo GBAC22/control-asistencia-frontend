@@ -2,6 +2,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
+export interface TenantIdentity {
+  slug: string;
+  name: string;
+  plan: string;
+}
+
 export interface Actor {
   actor: 'ADMIN' | 'ESTUDIANTE';
   id_admin?: string;
@@ -109,6 +115,10 @@ export interface AuditLogReport {
 export class AttendanceApiService {
   private readonly http = inject(HttpClient);
 
+  tenant(): Observable<{ tenant: TenantIdentity | null }> {
+    return this.http.get<{ tenant: TenantIdentity | null }>('/api/tenant');
+  }
+
   csrf(): Observable<{ detail: string }> {
     return this.http.get<{ detail: string }>('/api/auth/csrf');
   }
@@ -192,6 +202,12 @@ export class AttendanceApiService {
     const form = new FormData();
     form.append('archivo', file);
     return this.http.post<ImportResult>(`/api/admin/modules/${id}/import`, form);
+  }
+
+  downloadInitialPasswords(id: string): Observable<Blob> {
+    return this.http.get(`/api/admin/modules/${id}/initial-passwords`, {
+      responseType: 'blob',
+    });
   }
 
   attendanceReport(
