@@ -4,7 +4,11 @@
       <span class="brand-mark">CA</span>
       <span class="brand-copy">
         <strong>Control de asistencia</strong>
-        <small>Gestión académica</small>
+        @if (tenant; as institution) {
+          <small>{{ institution.name }} · Plan {{ institution.plan }}</small>
+        } @else {
+          <small>Gestión académica</small>
+        }
       </span>
     </a>
 
@@ -22,6 +26,9 @@
   </header>
 
   <main>
+    @if (tenantError) {
+      <div class="alert alert-error" role="alert">{{ tenantError }}</div>
+    }
     @if (!actor) {
       <section class="login-layout">
         <div class="welcome-panel">

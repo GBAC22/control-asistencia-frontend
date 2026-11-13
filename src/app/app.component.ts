@@ -12,6 +12,7 @@ import {
   AuditLogEntry,
   ClassDate,
   StudentClass,
+  TenantIdentity,
 } from './attendance-api.service';
 
 @Component({
@@ -24,6 +25,8 @@ export class AppComponent implements OnInit {
   private readonly api = inject(AttendanceApiService);
 
   actor: Actor | null = null;
+  tenant: TenantIdentity | null = null;
+  tenantError = '';
   loginMode: 'student' | 'admin' = 'student';
   section: 'attendance' | 'modules' | 'audit' = 'attendance';
   registrationNumber = '';
@@ -88,6 +91,14 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.api.tenant().subscribe({
+      next: ({ tenant }) => {
+        this.tenant = tenant;
+      },
+      error: () => {
+        this.tenantError = 'No se pudo cargar la información de la institución.';
+      },
+    });
     this.api.currentActor().subscribe({
       next: (actor) => {
         this.actor = actor;

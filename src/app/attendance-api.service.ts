@@ -2,6 +2,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
+export interface TenantIdentity {
+  slug: string;
+  name: string;
+  plan: string;
+}
+
 export interface Actor {
   actor: 'ADMIN' | 'ESTUDIANTE';
   id_admin?: string;
@@ -108,6 +114,10 @@ export interface AuditLogReport {
 @Injectable({ providedIn: 'root' })
 export class AttendanceApiService {
   private readonly http = inject(HttpClient);
+
+  tenant(): Observable<{ tenant: TenantIdentity | null }> {
+    return this.http.get<{ tenant: TenantIdentity | null }>('/api/tenant');
+  }
 
   csrf(): Observable<{ detail: string }> {
     return this.http.get<{ detail: string }>('/api/auth/csrf');

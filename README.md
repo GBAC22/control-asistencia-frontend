@@ -26,6 +26,11 @@ Authentication, schedules, attendance, class cancellations, and module
 management are provided by the Django API; do not put database credentials or
 application secrets in this frontend repository.
 
+The header displays the institution and plan returned by the backend's
+`GET /api/tenant`. It retains the generic heading for standalone deployments
+without tenant settings and shows an error when the endpoint cannot be loaded.
+The displayed plan does not enforce student quotas.
+
 For student import and initial password downloads, see
 [the credential workflow](CAMBIOS-CREDENCIALES.md). This requires the compatible
 backend and its separately configured encryption key.
